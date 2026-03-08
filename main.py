@@ -82,3 +82,31 @@ plt.title("Distribuição do Nível de Utilização da Rede")
 plt.ylabel("Utilização da Rede")
 
 plt.show()
+
+# 4.3.4 - Estatísticas do nível de utilização para alguns concelhos
+
+concelhos = ["Coimbra", "Évora", "Braga", "Faro"]
+
+dados_concelhos = ptd[ptd["Concelho"].isin(concelhos)]
+
+estatisticas = dados_concelhos.groupby("Concelho")["Utilizacao_decimal"].agg([
+    "mean",
+    "std",
+    "skew",
+    "kurt"
+])
+
+# adicionar quartis
+estatisticas["Q1"] = dados_concelhos.groupby("Concelho")["Utilizacao_decimal"].quantile(0.25)
+estatisticas["Q2"] = dados_concelhos.groupby("Concelho")["Utilizacao_decimal"].quantile(0.50)
+estatisticas["Q3"] = dados_concelhos.groupby("Concelho")["Utilizacao_decimal"].quantile(0.75)
+
+# reorganizar colunas
+estatisticas = estatisticas[["mean", "Q1", "Q2", "Q3", "std", "skew", "kurt"]]
+
+# arredondar para 4 casas decimais
+estatisticas = estatisticas.round(4)
+
+print()
+print("4.3.4: Estatísticas do nível de utilização por concelho")
+print(estatisticas)

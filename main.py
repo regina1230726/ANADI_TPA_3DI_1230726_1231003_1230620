@@ -6,6 +6,34 @@ import matplotlib.pyplot as plt
 
 # 4.2.1. Ficheiro IP
 
+print("\n--- 4.2.1: Processamento da Iluminação Pública ---")
+
+# 0. Ler o ficheiro de dados
+# (Ajusta o nome do ficheiro para .xlsx ou .csv conforme o que estiveres a usar no teu código)
+ip = pd.read_excel("IP_data.xlsx") 
+
+# 1. Criar variável binária Is_Ineficiente
+ip["Is_Ineficiente"] = ip["Tipo de Lâmpada"].isin(["Sódio", "Mercúrio"]).astype(int)
+
+# 2. Criar variável Potência kW
+# Atenção ao nome real da coluna no ficheiro: Potência Instalada Total (W)
+ip["Potência kW"] = ip["Potência Instalada Total (W)"] / 1000
+
+# Coluna auxiliar para calcular a potência ineficiente mais facilmente no groupby
+ip["Potencia_Inef_Temp"] = ip["Potência kW"] * ip["Is_Ineficiente"]
+
+# 3. Agrupar por CodDistritoConcelho
+ip_group = ip.groupby("CodDistritoConcelho").agg(
+    P_IP_Total=("Potência kW", "sum"),
+    P_IP_Inef=("Potencia_Inef_Temp", "sum")
+).reset_index()
+
+# Opcional: Apagar a coluna temporária do dataframe original (boas práticas)
+ip = ip.drop(columns=["Potencia_Inef_Temp"])
+
+print("Resultado do agrupamento IP (Primeiras linhas):")
+print(ip_group.head())
+
 # 4.2.2. Ficheiro PTD
 
 def converter_utilizacao(valor):
@@ -55,6 +83,45 @@ print("4.2.2: Agrupar por Código Distrito Concelho")
 print(ptd_group.head())
 
 # 4.3 ANÁLISE E EXPLORAÇÃO DE DADOS
+
+# 4.3.2 - Boxplots por Distrito
+
+print("\n--- 4.3.2: Boxplots de Utilização por Distrito ---")
+
+# 1. Extrair o código do Distrito (os primeiros dígitos do CodDistritoConcelho)
+# Como o CodDistritoConcelho tem 3 ou 4 dígitos, uma divisão inteira por 100 dá-nos o Distrito.
+ptd["CodDistrito"] = ptd["CodDistritoConcelho"] // 100
+
+# 2. Mapear o código para o nome do Distrito correspondente
+mapa_distritos = {
+    1: "Aveiro",
+    11: "Lisboa",
+    13: "Porto",
+    15: "Setúbal"
+}
+ptd["Distrito"] = ptd["CodDistrito"].map(mapa_distritos)
+
+# 3. Definir os distritos que queremos analisar e remover valores nulos
+distritos_alvo = ["Lisboa", "Porto", "Aveiro", "Setúbal"]
+ptd_filtrado = ptd[ptd["Distrito"].isin(distritos_alvo)].dropna(subset=["Utilizacao_decimal"])
+
+# 4. Criar a caixa de bigodes (boxplot)
+plt.figure(figsize=(10, 6))
+ptd_filtrado.boxplot(column="Utilizacao_decimal", by="Distrito", grid=False)
+
+# Formatar o gráfico
+plt.title("Distribuição do Nível de Utilização dos PTDs por Distrito")
+plt.suptitle("") # Remove o subtítulo automático
+plt.xlabel("Distrito")
+plt.ylabel("Nível de Utilização (Decimal)")
+
+# Mostrar o gráfico (não te esqueças de guardar ou fazer print screen para o relatório!)
+plt.show()
+
+# 5. Calcular o desvio padrão para responder à pergunta "maior variabilidade"
+variabilidade = ptd_filtrado.groupby("Distrito")["Utilizacao_decimal"].std().sort_values(ascending=False)
+print("Variabilidade (Desvio Padrão) da utilização por distrito:")
+print(variabilidade)
 
 # 4.3.3 - Quantificar valores omissos ou indeterminados
 

@@ -81,8 +81,61 @@ ptd_group = ptd.groupby("CodDistritoConcelho").agg(
 print()
 print("4.2.2: Agrupar por Código Distrito Concelho")
 print(ptd_group.head())
+ # 4.2.3
+
+df_final = pd.merge(ip_group, ptd_group, on="CodDistritoConcelho", how="inner")
+
+df_final["Delta_PLED"] = df_final["P_IP_Inef"] * 0.65
+df_final["PFolga"] = (df_final["Cap_PTD"] * 0.92) * (1 - df_final["Util_Media"])
+df_final["PVE"] = df_final["N_PTDs"] * 22 * 0.60
+df_final["D"] = df_final["PFolga"] + df_final["Delta_PLED"] - df_final["PVE"]
+df_final["Rate_Ineficiencia"] = df_final["P_IP_Inef"] / df_final["P_IP_Total"]
 
 # 4.3 ANÁLISE E EXPLORAÇÃO DE DADOS
+
+# 4.3.1 - Mix tecnológico (LED vs Convencional)
+
+print("\n--- 4.3.1: Mix tecnológico da iluminação pública ---")
+
+# classificar tecnologia
+ip["Tecnologia"] = ip["Is_Ineficiente"].map({
+    1: "Convencional (Sódio/Mercúrio)",
+    0: "LED / Outras eficientes"
+})
+
+# somar potência por tecnologia
+mix_tecnologico = ip.groupby("Tecnologia")["Potência kW"].sum()
+
+print("Potência total por tecnologia:")
+print(mix_tecnologico)
+
+# gráfico pie
+plt.figure(figsize=(6,6))
+mix_tecnologico.plot(kind="pie", autopct="%1.1f%%")
+
+plt.title("Mix Tecnológico da Iluminação Pública")
+plt.ylabel("")
+
+plt.show()
+
+
+# verificar concentração da potência ineficiente por município
+top_ineficientes = ip_group.sort_values("P_IP_Inef", ascending=False).head(10)
+
+print()
+print("Concelhos com maior potência ineficiente:")
+print(top_ineficientes[["CodDistritoConcelho", "P_IP_Inef"]])
+
+plt.figure(figsize=(10,6))
+plt.bar(top_ineficientes["CodDistritoConcelho"].astype(str), top_ineficientes["P_IP_Inef"])
+
+plt.title("Concelhos com Maior Potência de Iluminação Ineficiente")
+plt.xlabel("Concelho")
+plt.ylabel("Potência Ineficiente (kW)")
+
+plt.xticks(rotation=45)
+
+plt.show()
 
 # 4.3.2 - Boxplots por Distrito
 

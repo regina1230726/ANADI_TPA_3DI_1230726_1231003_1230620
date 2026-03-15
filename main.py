@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.stats import shapiro
+from scipy.stats import ttest_ind
 
 # 4.2 MANIPULAÇÃO DE DADOS
 
@@ -230,3 +232,51 @@ estatisticas = estatisticas.round(4)
 print()
 print("4.3.4: Estatísticas do nível de utilização por concelho")
 print(estatisticas)
+
+# 4.4 - TESTES DE HIPÓTESES
+
+# 4.4.1 -
+
+# 4.4.2 - Teste de diferença entre concelhos Modernizados e Ineficientes
+
+print()
+print("\n--- 4.4.2: Comparação entre concelhos Modernizados e Ineficientes ---")
+
+# calcular mediana do rácio de ineficiência
+mediana = df_final["Rate_Ineficiencia"].median()
+
+# classificar concelhos
+df_final["Grupo"] = np.where(
+    df_final["Rate_Ineficiencia"] > mediana,
+    "Ineficiente",
+    "Modernizado"
+)
+
+print("Mediana do rácio de ineficiência:", mediana)
+print(df_final["Grupo"].value_counts())
+
+modernizados = df_final[df_final["Grupo"] == "Modernizado"]
+ineficientes = df_final[df_final["Grupo"] == "Ineficiente"]
+
+amostra_mod = modernizados.sample(n=30, random_state=42)
+amostra_inef = ineficientes.sample(n=30, random_state=42)
+
+util_mod = amostra_mod["Util_Media"]
+util_inef = amostra_inef["Util_Media"]
+
+print("\nMédias das amostras:")
+print("Modernizados:", util_mod.mean())
+print("Ineficientes:", util_inef.mean())
+
+shapiro_mod = shapiro(util_mod)
+shapiro_inef = shapiro(util_inef)
+
+print("\nTeste de normalidade (Shapiro-Wilk)")
+
+print("Modernizados p-value:", shapiro_mod.pvalue)
+print("Ineficientes p-value:", shapiro_inef.pvalue)
+
+teste = ttest_ind(util_mod, util_inef)
+
+print("\nTeste t para duas amostras independentes")
+print("p-value:", teste.pvalue)

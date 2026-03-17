@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 from scipy.stats import shapiro
 from scipy.stats import ttest_ind
 from scipy.stats import kurtosis
+import scipy.stats as stats
+
 
 # 4.2 MANIPULAÇÃO DE DADOS
 
@@ -276,7 +278,62 @@ print(estatisticas)
 
 # 4.4 - TESTES DE HIPÓTESES
 
-# 4.4.1 -
+# 4.4.1 - Teste ao nível médio de ocupação da rede (< 60%)
+
+print("\n--- 4.4.1: Teste ao nível médio de ocupação da rede (< 60%) ---")
+
+# 1. Selecionar uma amostra aleatória de 50 concelhos
+amostra_50 = df_final.sample(n=50, random_state=42)
+util_amostra = amostra_50["Util_Media"]
+
+print(f"Média da amostra: {util_amostra.mean():.4f}")
+print(f"Mediana da amostra: {util_amostra.median():.4f}\n")
+
+# 2. Testar a normalidade dos dados com o teste de Shapiro-Wilk
+stat_shapiro, p_shapiro = stats.shapiro(util_amostra)
+print("Teste de Ajustamento (Shapiro-Wilk):")
+print(f"Estatística: {stat_shapiro:.4f} | p-value: {p_shapiro:.4f}\n")
+
+mu_0 = 0.60
+alpha = 0.05
+
+print("--- Decisão do Teste ---")
+# 3. Escolher o teste mediante o resultado do Shapiro-Wilk
+if p_shapiro > alpha:
+    print("Como p-value > 0.05, NÃO se rejeita a normalidade dos dados.")
+    print("-> Avança-se com o Teste Paramétrico: t-Student para 1 amostra.\n")
+
+    # Teste t-Student (unilateral à esquerda)
+    t_stat, p_t = stats.ttest_1samp(util_amostra, popmean=mu_0, alternative='less')
+
+    print(f"Estatística t: {t_stat:.4f} | p-value do t-teste: {p_t:.4e}")
+    if p_t < alpha:
+        print("Conclusão: Rejeita-se H0. Existe evidência estatística de que o nível de ocupação é inferior a 60%.")
+    else:
+        print("Conclusão: Não se rejeita H0. Não existe evidência estatística de que o nível de ocupação é inferior a 60%.")
+
+else:
+    print("Como p-value <= 0.05, REJEITA-SE a normalidade dos dados.")
+    print("-> Avança-se com o Teste Não Paramétrico: Teste de Wilcoxon.\n")
+
+    # Avaliar assimetria (skewness) para o teste de Wilcoxon
+    assimetria = stats.skew(util_amostra)
+    print(f"Assimetria (Skewness): {assimetria:.4f}")
+    if abs(assimetria) < 0.1:
+        print("(Distribuição simétrica - Condição ideal para Wilcoxon cumprida)")
+    elif 0.1 <= abs(assimetria) <= 1:
+        print("(Distribuição moderadamente assimétrica)")
+    else:
+        print("(Distribuição fortemente assimétrica)")
+
+    # Teste de Wilcoxon (unilateral à esquerda)
+    w_stat, p_w = stats.wilcoxon(util_amostra - mu_0, alternative='less')
+
+    print(f"\nEstatística W: {w_stat:.4f} | p-value do Wilcoxon: {p_w:.4e}")
+    if p_w < alpha:
+        print("Conclusão: Rejeita-se H0. Existe evidência estatística de que o nível de ocupação é inferior a 60%.")
+    else:
+        print("Conclusão: Não se rejeita H0. Não existe evidência estatística de que o nível de ocupação é inferior a 60%.")
 
 # 4.4.2 - Teste de diferença entre concelhos Modernizados e Ineficientes
 

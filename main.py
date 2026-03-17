@@ -84,6 +84,7 @@ ptd_group = ptd.groupby("CodDistritoConcelho").agg(
 print()
 print("4.2.2: Agrupar por Código Distrito Concelho")
 print(ptd_group.head())
+
  # 4.2.3
 
 df_final = pd.merge(ip_group, ptd_group, on="CodDistritoConcelho", how="inner")
@@ -93,6 +94,45 @@ df_final["PFolga"] = (df_final["Cap_PTD"] * 0.92) * (1 - df_final["Util_Media"])
 df_final["PVE"] = df_final["N_PTDs"] * 22 * 0.60
 df_final["D"] = df_final["PFolga"] + df_final["Delta_PLED"] - df_final["PVE"]
 df_final["Rate_Ineficiencia"] = df_final["P_IP_Inef"] / df_final["P_IP_Total"]
+
+
+# criar tabela com nomes mais intuitivos
+tabela_resumo = df_final[[
+    "CodDistritoConcelho",
+    "P_IP_Total",
+    "P_IP_Inef",
+    "Cap_PTD",
+    "Util_Media",
+    "N_PTDs",
+    "Delta_PLED",
+    "PFolga",
+    "PVE",
+    "D",
+    "Rate_Ineficiencia"
+]].copy()
+
+# renomear colunas para o relatório
+tabela_resumo.columns = [
+    "CodDistritoConcelho",
+    "P_IP_Total (kW)",
+    "P_IP_Inef (kW)",
+    "Capacidade PTD (kVA)",
+    "Utilização Média",
+    "Nº PTDs",
+    "Ganho LED (kW)",
+    "Folga Rede (kW)",
+    "Carga VE (kW)",
+    "Saldo Final D (kW)",
+    "Taxa Ineficiência"
+]
+
+# arredondar valores para ficar mais apresentável
+tabela_resumo = tabela_resumo.round(4)
+
+# mostrar apenas 10 concelhos
+pd.set_option('display.max_columns', None)
+print("\n--- 4.2.3: Tabela resumo (10 concelhos) ---")
+print(tabela_resumo.head(10))
 
 # 4.3 ANÁLISE E EXPLORAÇÃO DE DADOS
 

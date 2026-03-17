@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import shapiro
 from scipy.stats import ttest_ind
+from scipy.stats import kurtosis
 
 # 4.2 MANIPULAÇÃO DE DADOS
 
@@ -211,12 +212,12 @@ concelhos = ["Coimbra", "Évora", "Braga", "Faro"]
 
 dados_concelhos = ptd[ptd["Concelho"].isin(concelhos)]
 
-estatisticas = dados_concelhos.groupby("Concelho")["Utilizacao_decimal"].agg([
-    "mean",
-    "std",
-    "skew",
-    "kurt"
-])
+estatisticas = dados_concelhos.groupby("Concelho")["Utilizacao_decimal"].agg(
+    mean="mean",
+    std="std",
+    skew="skew",
+    kurt=lambda x: kurtosis(x)
+)
 
 # adicionar quartis
 estatisticas["Q1"] = dados_concelhos.groupby("Concelho")["Utilizacao_decimal"].quantile(0.25)
@@ -280,3 +281,90 @@ teste = ttest_ind(util_mod, util_inef)
 
 print("\nTeste t para duas amostras independentes")
 print("p-value:", teste.pvalue)
+
+# 4.4.3 - ANOVA entre três perfis regionais
+
+from scipy.stats import f_oneway
+from statsmodels.stats.multicomp import pairwise_tukeyhsd
+
+print("\n--- 4.4.3: ANOVA entre regiões ---")
+
+# Trabalhar sobre a base consolidada
+df_anova = df_final.copy()
+
+# Criar distrito a partir de CodDistritoConcelho
+df_anova["Distrito"] = (df_anova["CodDistritoConcelho"] // 100).map({
+    1: "Aveiro",
+    2: "Beja",
+    3: "Braga",
+    6: "Coimbra",
+    7: "Évora",
+    11: "Lisboa",
+    12: "Portalegre",
+    13: "Porto",
+    15: "Setúbal"
+})
+
+# Criar os 3 grupos pedidos no enunciado
+grupo1 = df_anova[df_anova["Distrito"].isin(["Porto", "Braga", "Coimbra"])]
+grupo2 = df_anova[df_anova["Distrito"].isin(["Lisboa", "Setúbal", "Aveiro"])]
+grupo3 = df_anova[df_anova["Distrito"].isin(["Évora", "Beja", "Portalegre"])]
+
+# Verificar se há pelo menos 25 concelhos por grupo
+print("Número de concelhos disponíveis por grupo:")
+print("Grupo 1:", len(grupo1))
+print("Grupo 2:", len(grupo2))
+print("Grupo 3:", len(grupo3))
+
+# Amostragem aleatória de 25 concelhos por grupo
+amostra1 = grupo1.sample(n=25, random_state=42)["Util_Media"]
+amostra2 = grupo2.sample(n=25, random_state=42)["Util_Media"]
+amostra3 = grupo3.sample(n=25, random_state=42)["Util_Media"]
+
+# Médias das amostras
+print("\nMédias das amostras:")
+print("Grupo 1 - Norte/Centro Litoral:", round(amostra1.mean(), 4))
+print("Grupo 2 - Lisboa/Litoral Sul:", round(amostra2.mean(), 4))
+print("Grupo 3 - Interior/Alentejo:", round(amostra3.mean(), 4))
+
+# Boxplot para apoio visual
+plt.figure(figsize=(9, 6))
+plt.boxplot(
+    [amostra1, amostra2, amostra3],
+    labels=["Norte/Centro", "Lisboa/Litoral", "Interior/Alentejo"]
+)
+plt.title("Comparação do nível médio de ocupação da rede por região")
+plt.ylabel("Util_Media")
+plt.show()
+
+# ANOVA
+anova = f_oneway(amostra1, amostra2, amostra3)
+
+print("\nResultado da ANOVA:")
+print("F-statistic:", anova.statistic)
+print("p-value:", anova.pvalue)
+
+alpha = 0.05
+
+if anova.pvalue < alpha:
+    print("\nConclusão: rejeita-se H0. Existem diferenças significativas entre pelo menos dois grupos.")
+
+    # Post-hoc de Tukey
+    dados_tukey = pd.DataFrame({
+        "valor": pd.concat([amostra1, amostra2, amostra3], ignore_index=True),
+        "grupo": (["Norte/Centro Litoral"] * len(amostra1) +
+                  ["Lisboa/Litoral Sul"] * len(amostra2) +
+                  ["Interior/Alentejo"] * len(amostra3))
+    })
+
+    tukey = pairwise_tukeyhsd(
+        endog=dados_tukey["valor"],
+        groups=dados_tukey["grupo"],
+        alpha=0.05
+    )
+
+    print("\nTeste post-hoc de Tukey:")
+    print(tukey)
+
+else:
+    print("\nConclusão: não se rejeita H0. Não há evidência estatística de diferenças significativas entre os grupos.")

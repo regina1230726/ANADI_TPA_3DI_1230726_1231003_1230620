@@ -212,12 +212,12 @@ concelhos = ["Coimbra", "Évora", "Braga", "Faro"]
 
 dados_concelhos = ptd[ptd["Concelho"].isin(concelhos)]
 
-estatisticas = dados_concelhos.groupby("Concelho")["Utilizacao_decimal"].agg(
-    mean="mean",
-    std="std",
-    skew="skew",
-    kurt=lambda x: kurtosis(x)
-)
+estatisticas = dados_concelhos.groupby("Concelho")["Utilizacao_decimal"].agg([
+    "mean",
+    "std",
+    "skew",
+    pd.Series.kurt
+])
 
 # adicionar quartis
 estatisticas["Q1"] = dados_concelhos.groupby("Concelho")["Utilizacao_decimal"].quantile(0.25)

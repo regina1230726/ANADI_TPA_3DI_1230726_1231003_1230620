@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import shapiro
 from scipy.stats import ttest_ind
-from scipy.stats import kurtosis
 import scipy.stats as stats
 
 
@@ -465,3 +464,136 @@ if anova.pvalue < alpha:
 
 else:
     print("\nConclusão: não se rejeita H0. Não há evidência estatística de diferenças significativas entre os grupos.")
+
+# 4.5. CORRELAÇÃO E REGRESSÃO
+
+print("\n--- 4.5: Preparação dos dados para regressão ---")
+
+# criar distrito no df_final
+df_final["Distrito"] = (df_final["CodDistritoConcelho"] // 100).map({
+    1: "Aveiro",
+    3: "Braga",
+    11: "Lisboa",
+    13: "Porto"
+})
+
+# filtrar distritos pretendidos
+df_modelo = df_final[df_final["Distrito"].isin(["Aveiro", "Porto", "Lisboa", "Braga"])]
+
+# selecionar variáveis relevantes
+df_modelo = df_modelo[[
+    "P_IP_Total",
+    "Cap_PTD",
+    "Rate_Ineficiencia",
+    "Util_Media"
+]]
+
+# remover NaN
+df_modelo = df_modelo.dropna()
+
+print("Dimensão do dataset final:", df_modelo.shape)
+print(df_modelo.head())
+
+print("\n--- 4.5: Matriz de Correlação ---")
+
+correlacao = df_modelo.corr()
+
+print(correlacao)
+
+import seaborn as sns
+
+plt.figure(figsize=(6,5))
+sns.heatmap(correlacao, annot=True, cmap="coolwarm")
+plt.title("Matriz de Correlação")
+plt.show()
+
+# 4.5.1 - Modelo de regressão linear múltipla
+
+import statsmodels.api as sm
+
+print("\n--- 4.5.1: Regressão Linear Múltipla ---")
+
+X = df_modelo[["P_IP_Total", "Cap_PTD", "Rate_Ineficiencia"]]
+Y = df_modelo["Util_Media"]
+
+# adicionar constante (β0)
+X = sm.add_constant(X)
+
+modelo = sm.OLS(Y, X).fit()
+
+print(modelo.summary())
+
+# 4.5.2 - Verificar os resíduos
+
+# Primeiro, verificar a normalidade dos resíduos
+
+residuos = modelo.resid
+
+shapiro_test = stats.shapiro(residuos)
+
+print("\nTeste de normalidade dos resíduos (Shapiro):")
+print("p-value:", shapiro_test.pvalue)
+
+stats.probplot(residuos, dist="norm", plot=plt)
+plt.title("Q-Q Plot dos Resíduos")
+plt.show()
+
+# Segundo, verificar a independência dos resíduos
+
+from statsmodels.stats.stattools import durbin_watson
+
+dw = durbin_watson(modelo.resid)
+
+print("\nTeste de Durbin-Watson:")
+print("Estatística DW:", round(dw, 4))
+
+# Terceiro, verificar a homocedasticidade dos resíduos
+
+valores_ajustados = modelo.fittedvalues
+
+plt.scatter(valores_ajustados, residuos)
+plt.axhline(y=0)
+plt.xlabel("Valores Ajustados")
+plt.ylabel("Resíduos")
+plt.title("Resíduos vs Valores Ajustados")
+plt.show()
+
+# 4.5.3 - Verificar multicolinearidade
+
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+print("\n--- 4.5.3: VIF ---")
+
+X_vif = X.copy()
+
+vif_data = pd.DataFrame()
+vif_data["Variável"] = X_vif.columns
+vif_data["VIF"] = [variance_inflation_factor(X_vif.values, i) for i in range(X_vif.shape[1])]
+
+print(vif_data)
+
+# 1. P_IP_Total vs Util_Media
+plt.figure(figsize=(6,5))
+sns.regplot(x="P_IP_Total", y="Util_Media", data=df_modelo)
+plt.title("P_IP_Total vs Util_Media")
+plt.xlabel("Potência IP Total (kW)")
+plt.ylabel("Utilização Média")
+plt.show()
+
+
+# 2. Cap_PTD vs Util_Media
+plt.figure(figsize=(6,5))
+sns.regplot(x="Cap_PTD", y="Util_Media", data=df_modelo)
+plt.title("Capacidade PTD vs Util_Media")
+plt.xlabel("Capacidade PTD (kVA)")
+plt.ylabel("Utilização Média")
+plt.show()
+
+
+# 3. Rate_Ineficiencia vs Util_Media
+plt.figure(figsize=(6,5))
+sns.regplot(x="Rate_Ineficiencia", y="Util_Media", data=df_modelo)
+plt.title("Taxa de Ineficiência vs Util_Media")
+plt.xlabel("Taxa de Ineficiência")
+plt.ylabel("Utilização Média")
+plt.show()

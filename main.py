@@ -249,30 +249,42 @@ plt.show()
 
 # 4.3.4 - Estatísticas do nível de utilização para alguns concelhos
 
-concelhos = ["Coimbra", "Évora", "Braga", "Faro"]
+# filtrar apenas os 4 distritos
+distritos = ["Coimbra", "Évora", "Braga", "Faro"]
 
-dados_concelhos = ptd[ptd["Concelho"].isin(concelhos)]
+# usar dados agregados por concelho
+ptd_group["Distrito_cod"] = ptd_group["CodDistritoConcelho"] // 100
 
-estatisticas = dados_concelhos.groupby("Concelho")["Utilizacao_decimal"].agg([
+map_distritos = {
+    3: "Braga",
+    6: "Coimbra",
+    7: "Évora",
+    8: "Faro"
+}
+
+ptd_group["Distrito"] = ptd_group["Distrito_cod"].map(map_distritos)
+
+dados_concelhos = ptd_group[ptd_group["Distrito"].isin(distritos)]
+
+estatisticas = dados_concelhos.groupby("Distrito")["Util_Media"].agg([
     "mean",
     "std",
     "skew",
     pd.Series.kurt
 ])
 
-# adicionar quartis
-estatisticas["Q1"] = dados_concelhos.groupby("Concelho")["Utilizacao_decimal"].quantile(0.25)
-estatisticas["Q2"] = dados_concelhos.groupby("Concelho")["Utilizacao_decimal"].quantile(0.50)
-estatisticas["Q3"] = dados_concelhos.groupby("Concelho")["Utilizacao_decimal"].quantile(0.75)
+estatisticas["Q1"] = dados_concelhos.groupby("Distrito")["Util_Media"].quantile(0.25)
+estatisticas["Q2"] = dados_concelhos.groupby("Distrito")["Util_Media"].quantile(0.50)
+estatisticas["Q3"] = dados_concelhos.groupby("Distrito")["Util_Media"].quantile(0.75)
 
-# reorganizar colunas
+# organizar
 estatisticas = estatisticas[["mean", "Q1", "Q2", "Q3", "std", "skew", "kurt"]]
 
-# arredondar para 4 casas decimais
+# arredondar
 estatisticas = estatisticas.round(4)
 
 print()
-print("4.3.4: Estatísticas do nível de utilização por concelho")
+print("4.3.4: Estatísticas do nível de utilização por distrito")
 print(estatisticas)
 
 # 4.4 - TESTES DE HIPÓTESES

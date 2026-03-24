@@ -1,9 +1,10 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import shapiro
-from scipy.stats import ttest_ind
+from scipy.stats import shapiro, pearsonr, ttest_ind
 import scipy.stats as stats
+import seaborn as sns
+
 
 
 # 4.2 MANIPULAÇÃO DE DADOS
@@ -476,6 +477,59 @@ if anova.pvalue < alpha:
 
 else:
     print("\nConclusão: não se rejeita H0. Não há evidência estatística de diferenças significativas entre os grupos.")
+
+
+# 4.4.4 - Correlação entre Capacidade PTD e Iluminação Pública
+
+print("\n--- 4.4.4: Correlação de Pearson (Cap_PTD vs P_IP_Total) ---")
+
+# 1. Isolar as variáveis (garantir que não há NaNs nas duas colunas)
+df_corr = df_final[["Cap_PTD", "P_IP_Total"]].dropna()
+x = df_corr["Cap_PTD"]
+y = df_corr["P_IP_Total"]
+
+# 2. Calcular a correlação de Pearson
+coef_corr_pearson, p_value = pearsonr(x, y)
+
+print(f"Coeficiente de Correlação de Pearson (r): {coef_corr_pearson:.4f}")
+print(f"Valor de prova do teste (p-value): {p_value:.4e}")
+
+# 3. Processo de decisão
+alpha = 0.05
+print("\n--- Decisão do Teste ---")
+if p_value < alpha:
+    print("Conclusão: Rejeita-se H0.")
+    print("Existe uma relação linear estatisticamente significativa entre a capacidade de transformação instalada e a carga de iluminação pública.")
+else:
+    print("Conclusão: Não se rejeita H0.")
+    print("Não existe evidência estatística de uma relação linear significativa.")
+
+# 4. Interpretação do Coeficiente (r)
+print("\n--- Interpretação do Coeficiente (r) ---")
+if coef_corr_pearson > 0.7:
+    forca = "forte e positiva"
+elif coef_corr_pearson > 0.3:
+    forca = "moderada e positiva"
+elif coef_corr_pearson > 0:
+    forca = "fraca e positiva"
+elif coef_corr_pearson < -0.7:
+    forca = "forte e negativa"
+elif coef_corr_pearson < -0.3:
+    forca = "moderada e negativa"
+else:
+    forca = "fraca e negativa"
+
+print(f"O valor de r ({coef_corr_pearson:.4f}) indica uma correlação {forca}.")
+print("Isto significa que concelhos com maior capacidade instalada tendem a ter um maior consumo de iluminação pública.")
+# 5. Gráfico de Dispersão (Visualização)
+plt.figure(figsize=(8, 5))
+sns.regplot(x=x, y=y, scatter_kws={'alpha':0.5}, line_kws={'color':'red'})
+plt.title("Relação entre Capacidade de Transformação (PTD) e Iluminação Pública (IP)")
+plt.xlabel("Capacidade Nominal de Transformação - PTD (kVA)")
+plt.ylabel("Potência Total Instalada - IP (kW)")
+plt.grid(True, linestyle='--', alpha=0.7)
+plt.show()
+
 
 # 4.5. CORRELAÇÃO E REGRESSÃO
 

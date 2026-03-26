@@ -663,3 +663,78 @@ plt.title("Taxa de Ineficiência vs Util_Media")
 plt.xlabel("Taxa de Ineficiência")
 plt.ylabel("Utilização Média")
 plt.show()
+
+
+# -----------------------------
+# 5. PREVISÃO PARA AVEIRO
+# -----------------------------
+
+# lista de concelhos
+lista_aveiro = [101,102,103,104,105,106,107,108,109]
+
+# criar dataframe só com esses concelhos (com .copy() evita warnings!)
+concelhos_aveiro = df_final[df_final["CodDistritoConcelho"].isin(lista_aveiro)].copy()
+
+# variáveis independentes
+X_aveiro = concelhos_aveiro[["P_IP_Total", "Cap_PTD", "Rate_Ineficiencia"]]
+
+# adicionar constante
+X_aveiro = sm.add_constant(X_aveiro)
+
+# previsões
+concelhos_aveiro["Previsao_Util"] = modelo.predict(X_aveiro)
+
+# resultado final
+print("\n--- 4.5.5 ---")
+print(concelhos_aveiro[[
+    "CodDistritoConcelho",
+    "Util_Media",
+    "Previsao_Util"
+]])
+
+# -----------------------------
+# 4.5.6 REDUÇÃO ESPERADA (β3)
+# -----------------------------
+
+# obter coeficiente β3 (Rate_Ineficiencia)
+beta3 = modelo.params["Rate_Ineficiencia"]
+
+# redução de 20%
+delta = -0.20
+
+# impacto médio esperado
+impacto = beta3 * delta
+
+print("\n--- 4.5.6 ---")
+print("Beta3:", beta3)
+print("Redução esperada no nível de ocupação:", impacto)
+
+# -----------------------------
+# 4.5.7 INTERVALOS DE CONFIANÇA
+# -----------------------------
+
+# previsões com intervalos
+pred = modelo.get_prediction(X_aveiro)
+
+pred_summary = pred.summary_frame(alpha=0.05)
+
+# adicionar ao dataframe
+concelhos_aveiro["Pred"] = pred_summary["mean"]
+concelhos_aveiro["IC_inf"] = pred_summary["mean_ci_lower"]
+concelhos_aveiro["IC_sup"] = pred_summary["mean_ci_upper"]
+
+# critério: quanto menor ocupação prevista, melhor
+# (mais capacidade disponível)
+
+concelhos_viaveis = concelhos_aveiro.sort_values("Pred")
+
+print("\n--- 4.5.7 ---")
+print(concelhos_viaveis[[
+    "CodDistritoConcelho",
+    "Pred",
+    "IC_inf",
+    "IC_sup"
+]])
+
+
+

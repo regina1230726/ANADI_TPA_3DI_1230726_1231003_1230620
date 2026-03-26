@@ -692,6 +692,17 @@ print(concelhos_aveiro[[
     "Previsao_Util"
 ]])
 
+# --- GRÁFICO 4.5.5 ---
+plt.figure(figsize=(10, 6))
+df_plot = concelhos_aveiro.melt(id_vars="CodDistritoConcelho", value_vars=["Util_Media", "Previsao_Util"])
+sns.barplot(data=df_plot, x="CodDistritoConcelho", y="value", hue="variable", palette="viridis")
+plt.title("Aveiro: Utilização Real vs. Prevista por Concelho")
+plt.ylabel("Nível de Utilização")
+plt.xticks(rotation=45)
+plt.legend(title="Legenda")
+plt.tight_layout()
+plt.show()
+
 # -----------------------------
 # 4.5.6 REDUÇÃO ESPERADA (β3)
 # -----------------------------
@@ -713,20 +724,34 @@ print("Redução esperada no nível de ocupação:", impacto)
 # 4.5.7 INTERVALOS DE CONFIANÇA
 # -----------------------------
 
-# previsões com intervalos
-pred = modelo.get_prediction(X_aveiro)
+df_previsao = df_final[df_final["Distrito"].isin(["Aveiro", "Porto", "Lisboa", "Braga"])].copy()
 
+# remover NaN nas variáveis usadas
+df_previsao = df_previsao[[
+    "CodDistritoConcelho",
+    "P_IP_Total",
+    "Cap_PTD",
+    "Rate_Ineficiencia",
+    "Util_Media"
+]].dropna()
+
+# variáveis independentes
+X_all = df_previsao[["P_IP_Total", "Cap_PTD", "Rate_Ineficiencia"]]
+
+# adicionar constante
+X_all = sm.add_constant(X_all)
+
+# previsões com intervalos
+pred = modelo.get_prediction(X_all)
 pred_summary = pred.summary_frame(alpha=0.05)
 
-# adicionar ao dataframe
-concelhos_aveiro["Pred"] = pred_summary["mean"]
-concelhos_aveiro["IC_inf"] = pred_summary["mean_ci_lower"]
-concelhos_aveiro["IC_sup"] = pred_summary["mean_ci_upper"]
+# adicionar resultados
+df_previsao["Pred"] = pred_summary["mean"]
+df_previsao["IC_inf"] = pred_summary["mean_ci_lower"]
+df_previsao["IC_sup"] = pred_summary["mean_ci_upper"]
 
-# critério: quanto menor ocupação prevista, melhor
-# (mais capacidade disponível)
-
-concelhos_viaveis = concelhos_aveiro.sort_values("Pred")
+# ordenar pelos mais viáveis (menor utilização prevista)
+concelhos_viaveis = df_previsao.sort_values("Pred")
 
 print("\n--- 4.5.7 ---")
 print(concelhos_viaveis[[
@@ -734,7 +759,4 @@ print(concelhos_viaveis[[
     "Pred",
     "IC_inf",
     "IC_sup"
-]])
-
-
-
+]].head(10))  # top 10 mais viáveis

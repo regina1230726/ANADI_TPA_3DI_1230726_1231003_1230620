@@ -760,3 +760,57 @@ print(concelhos_viaveis[[
     "IC_inf",
     "IC_sup"
 ]].head(10))  # top 10 mais viáveis
+
+
+top10 = concelhos_viaveis.head(10).copy()
+top10 = top10.sort_values("Pred", ascending=False)
+top10["CodDistritoConcelho"] = top10["CodDistritoConcelho"].astype(str)
+
+erro_inf = top10["Pred"] - top10["IC_inf"]
+erro_sup = top10["IC_sup"] - top10["Pred"]
+
+sns.set_style("whitegrid")
+plt.figure(figsize=(10, 6))
+
+limite_esq = top10["IC_inf"].min() - 0.02
+limite_dir = top10["IC_sup"].max() + 0.02
+plt.xlim(limite_esq, limite_dir)
+
+barras = plt.barh(
+    top10["CodDistritoConcelho"], 
+    top10["Pred"], 
+    color='#4C72B0',      
+    edgecolor='none',     
+    alpha=0.9,            
+    height=0.55,
+    label='Previsão Média (Utilização)'
+)
+
+plt.errorbar(
+    top10["Pred"], 
+    top10["CodDistritoConcelho"], 
+    xerr=[erro_inf, erro_sup], 
+    fmt='none',           
+    ecolor='#333333',     
+    elinewidth=2,         
+    capsize=0,            
+    zorder=3,
+    label='Intervalo de Confiança (95%)'
+)
+
+for i, barra in enumerate(barras):
+    largura = barra.get_width()
+    plt.text(limite_esq + 0.003, barra.get_y() + barra.get_height()/2, 
+             f'{largura:.4f}', 
+             va='center', color='white', fontweight='bold', fontsize=10)
+
+plt.title("Top 10 Concelhos Mais Viáveis para Instalação de VE\n(Menor Ocupação de Rede Prevista com IC 95%)", fontsize=14, pad=15)
+plt.xlabel("Nível Médio de Utilização Previsto (Decimal)", fontsize=12)
+plt.ylabel("Código do Concelho", fontsize=12)
+
+plt.legend(loc='lower right', frameon=True, facecolor='white', framealpha=0.9)
+
+sns.despine(left=True, bottom=False)
+
+plt.tight_layout()
+plt.show()

@@ -165,21 +165,30 @@ plt.show()
 
 
 # verificar concentração da potência ineficiente por município
-top_ineficientes = ip_group.sort_values("P_IP_Inef", ascending=False).head(10)
+top_ineficientes = ip_group.sort_values("P_IP_Inef", ascending=False).head(10).copy()
+
+mapa_concelhos = dict(zip(ip['CodDistritoConcelho'], ip['Concelho']))
+
+top_ineficientes["NomeConcelho"] = top_ineficientes["CodDistritoConcelho"].map(mapa_concelhos)
 
 print()
 print("Concelhos com maior potência ineficiente:")
-print(top_ineficientes[["CodDistritoConcelho", "P_IP_Inef"]])
+print(top_ineficientes[["NomeConcelho", "P_IP_Inef"]])
 
 plt.figure(figsize=(10,6))
-plt.bar(top_ineficientes["CodDistritoConcelho"].astype(str), top_ineficientes["P_IP_Inef"])
 
-plt.title("Concelhos com Maior Potência de Iluminação Ineficiente")
-plt.xlabel("Concelho")
-plt.ylabel("Potência Ineficiente (kW)")
+plt.bar(top_ineficientes["NomeConcelho"], top_ineficientes["P_IP_Inef"], color='#e74c3c', alpha=0.8)
 
-plt.xticks(rotation=45)
+plt.title("Top 10 Concelhos com Maior Potência de Iluminação Ineficiente", fontsize=14, pad=15)
+plt.xlabel("Concelho", fontsize=12)
+plt.ylabel("Potência Ineficiente (kW)", fontsize=12)
 
+# ha='right' ajuda a alinhar os nomes compridos (como Sintra ou Vila Nova de Gaia)
+plt.xticks(rotation=45, ha='right')
+
+sns.despine()
+
+plt.tight_layout()
 plt.show()
 
 # 4.3.2 - Boxplots por Distrito
@@ -666,19 +675,23 @@ plt.show()
 
 
 # -----------------------------
-# 5. PREVISÃO PARA AVEIRO
+# 4.5.5 PREVISÃO PARA AVEIRO (Com nomes automáticos)
 # -----------------------------
 
-# lista de concelhos
+# Criar o mapa de concelhos a partir dos dados originais
+mapa_concelhos = dict(zip(ip['CodDistritoConcelho'], ip['Concelho']))
+
+# lista de concelhos que já tinhas
 lista_aveiro = [101,102,103,104,105,106,107,108,109]
 
-# criar dataframe só com esses concelhos (com .copy() evita warnings!)
+# criar dataframe só com esses concelhos
 concelhos_aveiro = df_final[df_final["CodDistritoConcelho"].isin(lista_aveiro)].copy()
+
+# APLICAR O NOME AUTOMÁTICO AQUI:
+concelhos_aveiro["NomeConcelho"] = concelhos_aveiro["CodDistritoConcelho"].map(mapa_concelhos)
 
 # variáveis independentes
 X_aveiro = concelhos_aveiro[["P_IP_Total", "Cap_PTD", "Rate_Ineficiencia"]]
-
-# adicionar constante
 X_aveiro = sm.add_constant(X_aveiro)
 
 # previsões
@@ -687,22 +700,22 @@ concelhos_aveiro["Previsao_Util"] = modelo.predict(X_aveiro)
 # resultado final
 print("\n--- 4.5.5 ---")
 print(concelhos_aveiro[[
-    "CodDistritoConcelho",
+    "NomeConcelho",
     "Util_Media",
     "Previsao_Util"
 ]])
 
 # --- GRÁFICO 4.5.5 ---
 plt.figure(figsize=(10, 6))
-df_plot = concelhos_aveiro.melt(id_vars="CodDistritoConcelho", value_vars=["Util_Media", "Previsao_Util"])
-sns.barplot(data=df_plot, x="CodDistritoConcelho", y="value", hue="variable", palette="viridis")
+# Mudamos x="CodDistritoConcelho" para x="NomeConcelho"
+df_plot = concelhos_aveiro.melt(id_vars="NomeConcelho", value_vars=["Util_Media", "Previsao_Util"])
+sns.barplot(data=df_plot, x="NomeConcelho", y="value", hue="variable", palette="viridis")
 plt.title("Aveiro: Utilização Real vs. Prevista por Concelho")
 plt.ylabel("Nível de Utilização")
-plt.xticks(rotation=45)
+plt.xticks(rotation=45, ha='right') # ha='right' alinha bem os nomes inclinados
 plt.legend(title="Legenda")
 plt.tight_layout()
 plt.show()
-
 # -----------------------------
 # 4.5.6 REDUÇÃO ESPERADA (β3)
 # -----------------------------
@@ -724,6 +737,7 @@ print("Redução esperada no nível de ocupação:", impacto)
 # 4.5.7 INTERVALOS DE CONFIANÇA
 # -----------------------------
 
+# 1. Preparar os dados (o código que se tinha perdido)
 df_previsao = df_final[df_final["Distrito"].isin(["Aveiro", "Porto", "Lisboa", "Braga"])].copy()
 
 # remover NaN nas variáveis usadas
@@ -761,10 +775,15 @@ print(concelhos_viaveis[[
     "IC_sup"
 ]].head(10))  # top 10 mais viáveis
 
-
+# -----------------------------
+# GRÁFICO (Com nomes automáticos)
+# -----------------------------
 top10 = concelhos_viaveis.head(10).copy()
 top10 = top10.sort_values("Pred", ascending=False)
-top10["CodDistritoConcelho"] = top10["CodDistritoConcelho"].astype(str)
+
+# Criar mapa e aplicar o nome do concelho
+mapa_concelhos = dict(zip(ip['CodDistritoConcelho'], ip['Concelho']))
+top10["NomeConcelho"] = top10["CodDistritoConcelho"].map(mapa_concelhos)
 
 erro_inf = top10["Pred"] - top10["IC_inf"]
 erro_sup = top10["IC_sup"] - top10["Pred"]
@@ -776,8 +795,9 @@ limite_esq = top10["IC_inf"].min() - 0.02
 limite_dir = top10["IC_sup"].max() + 0.02
 plt.xlim(limite_esq, limite_dir)
 
+# Usar NomeConcelho no eixo Y (barras)
 barras = plt.barh(
-    top10["CodDistritoConcelho"], 
+    top10["NomeConcelho"], 
     top10["Pred"], 
     color='#4C72B0',      
     edgecolor='none',     
@@ -786,9 +806,10 @@ barras = plt.barh(
     label='Previsão Média (Utilização)'
 )
 
+# Usar NomeConcelho no eixo Y (linhas de erro)
 plt.errorbar(
     top10["Pred"], 
-    top10["CodDistritoConcelho"], 
+    top10["NomeConcelho"], 
     xerr=[erro_inf, erro_sup], 
     fmt='none',           
     ecolor='#333333',     
@@ -798,6 +819,7 @@ plt.errorbar(
     label='Intervalo de Confiança (95%)'
 )
 
+# Adicionar os valores dentro das barras
 for i, barra in enumerate(barras):
     largura = barra.get_width()
     plt.text(limite_esq + 0.003, barra.get_y() + barra.get_height()/2, 
@@ -806,7 +828,7 @@ for i, barra in enumerate(barras):
 
 plt.title("Top 10 Concelhos Mais Viáveis para Instalação de VE\n(Menor Ocupação de Rede Prevista com IC 95%)", fontsize=14, pad=15)
 plt.xlabel("Nível Médio de Utilização Previsto (Decimal)", fontsize=12)
-plt.ylabel("Código do Concelho", fontsize=12)
+plt.ylabel("Concelho", fontsize=12)
 
 plt.legend(loc='lower right', frameon=True, facecolor='white', framealpha=0.9)
 

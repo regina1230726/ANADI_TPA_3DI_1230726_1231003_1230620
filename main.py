@@ -389,18 +389,46 @@ print("\nMédias das amostras:")
 print("Modernizados:", util_mod.mean())
 print("Ineficientes:", util_inef.mean())
 
+# Teste de normalidade
 shapiro_mod = shapiro(util_mod)
 shapiro_inef = shapiro(util_inef)
 
 print("\nTeste de normalidade (Shapiro-Wilk)")
-
 print("Modernizados p-value:", shapiro_mod.pvalue)
 print("Ineficientes p-value:", shapiro_inef.pvalue)
 
-teste = ttest_ind(util_mod, util_inef)
+alpha = 0.05
 
-print("\nTeste t para duas amostras independentes")
-print("p-value:", teste.pvalue)
+print("\n--- Decisão do Teste ---")
+
+# Verificar normalidade em ambos os grupos
+if shapiro_mod.pvalue > alpha and shapiro_inef.pvalue > alpha:
+    print("Ambos os grupos seguem distribuição normal.")
+    print("-> Teste Paramétrico: t-Student para amostras independentes\n")
+
+    teste = ttest_ind(util_mod, util_inef, alternative='two-sided')
+
+    print("Estatística t:", teste.statistic)
+    print("p-value:", teste.pvalue)
+
+    if teste.pvalue < alpha:
+        print("Conclusão: Rejeita-se H0. Existem diferenças significativas entre os grupos.")
+    else:
+        print("Conclusão: Não se rejeita H0. Não há evidência de diferenças significativas.")
+
+else:
+    print("Pelo menos um dos grupos NÃO segue distribuição normal.")
+    print("-> Teste Não Paramétrico: Mann-Whitney\n")
+
+    teste = stats.mannwhitneyu(util_mod, util_inef, alternative='two-sided')
+
+    print("Estatística U:", teste.statistic)
+    print("p-value:", teste.pvalue)
+
+    if teste.pvalue < alpha:
+        print("Conclusão: Rejeita-se H0. Existem diferenças significativas entre os grupos.")
+    else:
+        print("Conclusão: Não se rejeita H0. Não há evidência de diferenças significativas.")
 
 # 4.4.3 - ANOVA entre três perfis regionais
 

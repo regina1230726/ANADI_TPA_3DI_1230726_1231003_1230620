@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 from scipy.stats import shapiro, pearsonr, ttest_ind
 import scipy.stats as stats
 import seaborn as sns
+from scipy.stats import f_oneway
+from statsmodels.stats.multicomp import pairwise_tukeyhsd
 
 
 
@@ -387,23 +389,48 @@ print("\nMédias das amostras:")
 print("Modernizados:", util_mod.mean())
 print("Ineficientes:", util_inef.mean())
 
+# Teste de normalidade
 shapiro_mod = shapiro(util_mod)
 shapiro_inef = shapiro(util_inef)
 
 print("\nTeste de normalidade (Shapiro-Wilk)")
-
 print("Modernizados p-value:", shapiro_mod.pvalue)
 print("Ineficientes p-value:", shapiro_inef.pvalue)
 
-teste = ttest_ind(util_mod, util_inef)
+alpha = 0.05
 
-print("\nTeste t para duas amostras independentes")
-print("p-value:", teste.pvalue)
+print("\n--- Decisão do Teste ---")
+
+# Verificar normalidade em ambos os grupos
+if shapiro_mod.pvalue > alpha and shapiro_inef.pvalue > alpha:
+    print("Ambos os grupos seguem distribuição normal.")
+    print("-> Teste Paramétrico: t-Student para amostras independentes\n")
+
+    teste = ttest_ind(util_mod, util_inef, alternative='two-sided')
+
+    print("Estatística t:", teste.statistic)
+    print("p-value:", teste.pvalue)
+
+    if teste.pvalue < alpha:
+        print("Conclusão: Rejeita-se H0. Existem diferenças significativas entre os grupos.")
+    else:
+        print("Conclusão: Não se rejeita H0. Não há evidência de diferenças significativas.")
+
+else:
+    print("Pelo menos um dos grupos NÃO segue distribuição normal.")
+    print("-> Teste Não Paramétrico: Mann-Whitney\n")
+
+    teste = stats.mannwhitneyu(util_mod, util_inef, alternative='two-sided')
+
+    print("Estatística U:", teste.statistic)
+    print("p-value:", teste.pvalue)
+
+    if teste.pvalue < alpha:
+        print("Conclusão: Rejeita-se H0. Existem diferenças significativas entre os grupos.")
+    else:
+        print("Conclusão: Não se rejeita H0. Não há evidência de diferenças significativas.")
 
 # 4.4.3 - ANOVA entre três perfis regionais
-
-from scipy.stats import f_oneway
-from statsmodels.stats.multicomp import pairwise_tukeyhsd
 
 print("\n--- 4.4.3: ANOVA entre regiões ---")
 
@@ -674,27 +701,14 @@ plt.ylabel("Utilização Média")
 plt.show()
 
 
-# -----------------------------
-# 4.5.5 PREVISÃO PARA AVEIRO (Com nomes automáticos)
-# -----------------------------
+# 5. Previsão para aveiro
 
-# Criar o mapa de concelhos a partir dos dados originais
 mapa_concelhos = dict(zip(ip['CodDistritoConcelho'], ip['Concelho']))
-
-# lista de concelhos que já tinhas
 lista_aveiro = [101,102,103,104,105,106,107,108,109]
-
-# criar dataframe só com esses concelhos
 concelhos_aveiro = df_final[df_final["CodDistritoConcelho"].isin(lista_aveiro)].copy()
-
-# APLICAR O NOME AUTOMÁTICO AQUI:
 concelhos_aveiro["NomeConcelho"] = concelhos_aveiro["CodDistritoConcelho"].map(mapa_concelhos)
-
-# variáveis independentes
 X_aveiro = concelhos_aveiro[["P_IP_Total", "Cap_PTD", "Rate_Ineficiencia"]]
 X_aveiro = sm.add_constant(X_aveiro)
-
-# previsões
 concelhos_aveiro["Previsao_Util"] = modelo.predict(X_aveiro)
 
 # resultado final
@@ -705,9 +719,8 @@ print(concelhos_aveiro[[
     "Previsao_Util"
 ]])
 
-# --- GRÁFICO 4.5.5 ---
+# gráfigo
 plt.figure(figsize=(10, 6))
-# Mudamos x="CodDistritoConcelho" para x="NomeConcelho"
 df_plot = concelhos_aveiro.melt(id_vars="NomeConcelho", value_vars=["Util_Media", "Previsao_Util"])
 sns.barplot(data=df_plot, x="NomeConcelho", y="value", hue="variable", palette="viridis")
 plt.title("Aveiro: Utilização Real vs. Prevista por Concelho")
@@ -716,31 +729,39 @@ plt.xticks(rotation=45, ha='right') # ha='right' alinha bem os nomes inclinados
 plt.legend(title="Legenda")
 plt.tight_layout()
 plt.show()
-# -----------------------------
-# 4.5.6 REDUÇÃO ESPERADA (β3)
-# -----------------------------
 
-# obter coeficiente β3 (Rate_Ineficiencia)
+
+
+# 6. REDUÇÃO ESPERADA (β3)
+
 beta3 = modelo.params["Rate_Ineficiencia"]
-
-# redução de 20%
 delta = -0.20
-
-# impacto médio esperado
 impacto = beta3 * delta
 
 print("\n--- 4.5.6 ---")
 print("Beta3:", beta3)
 print("Redução esperada no nível de ocupação:", impacto)
 
-# -----------------------------
-# 4.5.7 INTERVALOS DE CONFIANÇA
-# -----------------------------
+# gráfico comparação antes vs depois
+plt.figure(figsize=(6,4))
 
-# 1. Preparar os dados (o código que se tinha perdido)
+valores = [0, impacto]  # antes = 0 (sem alteração), depois = impacto
+labels = ["Antes", "Depois"]
+
+plt.bar(labels, valores)
+
+plt.title("Impacto da Redução de 20% na Ineficiência")
+plt.ylabel("Variação no Nível de Ocupação")
+plt.axhline(0)
+
+plt.tight_layout()
+plt.show()
+
+
+# 7. INTERVALOS DE CONFIANÇA
+
+
 df_previsao = df_final[df_final["Distrito"].isin(["Aveiro", "Porto", "Lisboa", "Braga"])].copy()
-
-# remover NaN nas variáveis usadas
 df_previsao = df_previsao[[
     "CodDistritoConcelho",
     "P_IP_Total",
@@ -749,13 +770,8 @@ df_previsao = df_previsao[[
     "Util_Media"
 ]].dropna()
 
-# variáveis independentes
 X_all = df_previsao[["P_IP_Total", "Cap_PTD", "Rate_Ineficiencia"]]
-
-# adicionar constante
 X_all = sm.add_constant(X_all)
-
-# previsões com intervalos
 pred = modelo.get_prediction(X_all)
 pred_summary = pred.summary_frame(alpha=0.05)
 
@@ -764,7 +780,6 @@ df_previsao["Pred"] = pred_summary["mean"]
 df_previsao["IC_inf"] = pred_summary["mean_ci_lower"]
 df_previsao["IC_sup"] = pred_summary["mean_ci_upper"]
 
-# ordenar pelos mais viáveis (menor utilização prevista)
 concelhos_viaveis = df_previsao.sort_values("Pred")
 
 print("\n--- 4.5.7 ---")
@@ -775,13 +790,10 @@ print(concelhos_viaveis[[
     "IC_sup"
 ]].head(10))  # top 10 mais viáveis
 
-# -----------------------------
-# GRÁFICO (Com nomes automáticos)
-# -----------------------------
+# gráfico
 top10 = concelhos_viaveis.head(10).copy()
 top10 = top10.sort_values("Pred", ascending=False)
 
-# Criar mapa e aplicar o nome do concelho
 mapa_concelhos = dict(zip(ip['CodDistritoConcelho'], ip['Concelho']))
 top10["NomeConcelho"] = top10["CodDistritoConcelho"].map(mapa_concelhos)
 
@@ -795,7 +807,6 @@ limite_esq = top10["IC_inf"].min() - 0.02
 limite_dir = top10["IC_sup"].max() + 0.02
 plt.xlim(limite_esq, limite_dir)
 
-# Usar NomeConcelho no eixo Y (barras)
 barras = plt.barh(
     top10["NomeConcelho"], 
     top10["Pred"], 
@@ -806,7 +817,6 @@ barras = plt.barh(
     label='Previsão Média (Utilização)'
 )
 
-# Usar NomeConcelho no eixo Y (linhas de erro)
 plt.errorbar(
     top10["Pred"], 
     top10["NomeConcelho"], 
@@ -819,7 +829,6 @@ plt.errorbar(
     label='Intervalo de Confiança (95%)'
 )
 
-# Adicionar os valores dentro das barras
 for i, barra in enumerate(barras):
     largura = barra.get_width()
     plt.text(limite_esq + 0.003, barra.get_y() + barra.get_height()/2, 

@@ -742,20 +742,7 @@ print("\n--- 4.5.6 ---")
 print("Beta3:", beta3)
 print("Redução esperada no nível de ocupação:", impacto)
 
-# gráfico comparação antes vs depois
-plt.figure(figsize=(6,4))
 
-valores = [0, impacto]  # antes = 0 (sem alteração), depois = impacto
-labels = ["Antes", "Depois"]
-
-plt.bar(labels, valores)
-
-plt.title("Impacto da Redução de 20% na Ineficiência")
-plt.ylabel("Variação no Nível de Ocupação")
-plt.axhline(0)
-
-plt.tight_layout()
-plt.show()
 
 
 # 7. INTERVALOS DE CONFIANÇA

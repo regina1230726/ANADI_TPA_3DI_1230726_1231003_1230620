@@ -170,3 +170,115 @@ if 'Cap_PTD_kVA' in df.columns and 'PFolga_PTD' in df.columns:
     plt.ylabel('Folga de Potência (PFolga_PTD)')
     plt.tight_layout()
     plt.show()
+
+
+# Secção 4.1.3 - Pré-processamento dos Dados
+
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.preprocessing import LabelEncoder
+
+    # Criar cópia do dataset original
+    df_processed = df.copy()
+
+# 1. Tratamento de Valores Omissos
+
+    print("=" * 60)
+    print("TRATAMENTO DE VALORES OMISSOS")
+    print("=" * 60)
+
+    # Verificar valores omissos
+    missing_values = df_processed.isnull().sum()
+
+    # Mostrar apenas colunas com omissos
+    missing_values = missing_values[missing_values > 0]
+
+    if missing_values.empty:
+        print("Não existem valores omissos no dataset.")
+    else:
+        print(missing_values)
+
+    # Variáveis numéricas -> substituir pela mediana
+    num_cols = df_processed.select_dtypes(include=np.number).columns
+
+    for col in num_cols:
+        if df_processed[col].isnull().sum() > 0:
+            mediana = df_processed[col].median()
+            df_processed[col].fillna(mediana, inplace=True)
+
+    # Variáveis categóricas -> substituir pela moda
+    cat_cols = df_processed.select_dtypes(include='object').columns
+
+    for col in cat_cols:
+        if df_processed[col].isnull().sum() > 0:
+            moda = df_processed[col].mode()[0]
+            df_processed[col].fillna(moda, inplace=True)
+
+    print("\nValores omissos após tratamento:")
+    print(df_processed.isnull().sum().sum())
+
+# 2. Transformação de Variáveis Categóricas
+
+    print("\n" + "=" * 60)
+    print("TRANSFORMAÇÃO DE VARIÁVEIS CATEGÓRICAS")
+    print("=" * 60)
+
+    # Verificar variáveis categóricas
+    print("Variáveis categóricas encontradas:")
+    print(cat_cols)
+
+    # Aplicar Label Encoding
+    label_encoders = {}
+
+    for col in cat_cols:
+        le = LabelEncoder()
+        df_processed[col] = le.fit_transform(df_processed[col].astype(str))
+        label_encoders[col] = le
+
+    print("\nTransformação concluída.")
+
+# 3. Seleção de Variáveis Relevantes
+
+    print("\n" + "=" * 60)
+    print("SELEÇÃO DE VARIÁVEIS")
+    print("=" * 60)
+
+    # Remover variáveis pouco relevantes ou redundantes
+    # (ajustar conforme análise do grupo)
+
+    colunas_remover = [
+        # exemplo:
+        # 'CodDistritoConcelho'
+    ]
+
+    colunas_existentes = [c for c in colunas_remover if c in df_processed.columns]
+
+    df_processed.drop(columns=colunas_existentes, inplace=True)
+
+    print("Variáveis removidas:")
+    print(colunas_existentes)
+
+# 4. Normalização / Standardização
+
+    print("\n" + "=" * 60)
+    print("NORMALIZAÇÃO / STANDARDIZAÇÃO")
+    print("=" * 60)
+
+    # Standardização das variáveis numéricas
+    scaler = StandardScaler()
+
+    num_cols = df_processed.select_dtypes(include=np.number).columns
+
+    df_processed[num_cols] = scaler.fit_transform(df_processed[num_cols])
+
+    print("Standardização concluída.")
+
+# 5. Dataset Final
+
+    print("\n" + "=" * 60)
+    print("DATASET FINAL PRONTO PARA MODELAGEM")
+    print("=" * 60)
+
+    print(f"Dimensão final: {df_processed.shape}")
+
+    print("\nPrimeiras linhas do dataset processado:")
+    print(df_processed.head())

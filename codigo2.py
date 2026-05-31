@@ -129,14 +129,46 @@ for col in vars_numericas:
 # 2. Variáveis Categóricas (Gráfico de Barras / Contagem)
 # ============================================================
 if 'Tipo Construtivo' in df.columns:
-    plt.figure(figsize=(12, 5))
-    order = df['Tipo Construtivo'].value_counts().index
+    plt.figure(figsize=(12, 6)) 
     
-    # Gráfico de barras horizontal - corrigido sem o 'legend=False'
-    sns.countplot(data=df, y='Tipo Construtivo', order=order, hue='Tipo Construtivo', palette='viridis')
-    plt.title('Frequência dos PTDs por Tipo Construtivo')
-    plt.xlabel('Contagem de Registos')
-    plt.ylabel('Tipo Construtivo')
+    # 1. Obter a contagem ordenada dos dados
+    tipo_counts = df['Tipo Construtivo'].value_counts()
+    order = tipo_counts.index
+    
+    # 2. Criar o gráfico base SEM usar o argumento 'hue' para garantir as barras largas
+    ax = sns.countplot(
+        data=df, 
+        y='Tipo Construtivo', 
+        order=order,
+        color='skyblue'
+    )
+    
+    # 3. Aplicar manualmente as cores da palete 'viridis' a cada barra
+    num_barras = len(order)
+    cores_palete = sns.color_palette('viridis', n_colors=num_barras)
+    
+    for i, patch in enumerate(ax.patches):
+        if i < num_barras:
+            patch.set_facecolor(cores_palete[i])
+            
+    # 4. ADICIONAR OS VALORES REAIS À FRENTE DE CADA BARRA
+    ax.bar_label(
+        ax.containers[0], 
+        fmt='%d', 
+        padding=8, 
+        fontsize=10.5, 
+        weight='semibold', 
+        color='#2c3e50'
+    )
+    
+    ax.set_title('Frequência dos PTDs por Tipo Construtivo', fontsize=13, pad=15, weight='bold')
+    ax.set_xlabel('Contagem de Registos', fontsize=11, labelpad=10)
+    ax.set_ylabel('Tipo Construtivo', fontsize=11, labelpad=10)
+    
+    ax.set_xlim(0, tipo_counts.max() * 1.15)
+    
+    sns.despine(left=True, bottom=True)
+    
     plt.tight_layout()
     plt.show()
 

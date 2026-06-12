@@ -211,12 +211,7 @@ if 'Cap_PTD_kVA' in df.columns and 'PFolga_PTD' in df.columns:
 import pandas as pd
 import numpy as np
 
-# Criar cópia do dataset original
 df_processed = df.copy()
-
-# ============================================================
-# 1. Tratamento de Valores Omissos
-# ============================================================
 
 print("=" * 60)
 print("TRATAMENTO DE VALORES OMISSOS")
@@ -230,8 +225,31 @@ if missing_values.empty:
 else:
     print(missing_values)
 
-# Variáveis numéricas -> mediana
-num_cols = df_processed.select_dtypes(include=np.number).columns
+# ------------------------------------------------------------
+# Remover linhas com omissos nas variáveis-alvo
+# ------------------------------------------------------------
+
+antes = len(df_processed)
+
+df_processed = df_processed.dropna(
+    subset=[
+        "PFolga_PTD",
+        "Util_Decimal"
+    ]
+)
+
+depois = len(df_processed)
+
+print(f"\nLinhas removidas por omissos nas variáveis-alvo: {antes - depois}")
+print(f"Registos após remoção: {depois}")
+
+# ------------------------------------------------------------
+# Imputar restantes variáveis numéricas
+# ------------------------------------------------------------
+
+num_cols = df_processed.select_dtypes(
+    include=np.number
+).columns
 
 for col in num_cols:
     if df_processed[col].isnull().sum() > 0:
@@ -239,8 +257,13 @@ for col in num_cols:
             df_processed[col].median()
         )
 
-# Variáveis categóricas -> moda
-cat_cols = df_processed.select_dtypes(include='object').columns
+# ------------------------------------------------------------
+# Imputar variáveis categóricas
+# ------------------------------------------------------------
+
+cat_cols = df_processed.select_dtypes(
+    include='object'
+).columns
 
 for col in cat_cols:
     if df_processed[col].isnull().sum() > 0:
@@ -297,7 +320,6 @@ cat_cols = df_processed.select_dtypes(
 print("Variáveis categóricas encontradas:")
 print(cat_cols)
 
-# One-Hot Encoding
 df_processed = pd.get_dummies(
     df_processed,
     columns=cat_cols,
@@ -305,6 +327,13 @@ df_processed = pd.get_dummies(
 )
 
 print("\nTransformação concluída.")
+
+# Converter bool para int
+bool_cols = df_processed.select_dtypes(
+    include="bool"
+).columns
+
+df_processed[bool_cols] = df_processed[bool_cols].astype(int)
 
 # ============================================================
 # 4. Standardização
@@ -330,9 +359,6 @@ print("=" * 60)
 
 print(f"Dimensão final: {df_processed.shape}")
 print(df_processed.dtypes.value_counts())
-
-print("\nPrimeiras linhas do dataset processado:")
-print(df_processed.head())
 
 print("\nNúmero total de variáveis:")
 print(df_processed.shape[1])
@@ -385,10 +411,8 @@ print("=" * 60)
 variavel_explicativa = 'Cap_PTD_kVA'
 print(f"-> Variável explicativa relevante selecionada: '{variavel_explicativa}'\n")
 
-# Preparação das matrizes (usando o df com dados limpos/imputados, mas SEM standardização global)
-# Garantimos que os nulos já foram tratados conforme o teu código da secção 4.1.3
-X_simple = df[[variavel_explicativa]].fillna(df[variavel_explicativa].median()).values
-y_simple = df['PFolga_PTD'].fillna(df['PFolga_PTD'].median()).values
+X_simple = df_processed[[variavel_explicativa]].values
+y_simple = df_processed["PFolga_PTD"].values
 
 # Configuração do K-Fold Cross Validation (por exemplo, k=5 ou k=10, robusto e computacionalmente eficiente)
 k = 5
@@ -1287,3 +1311,528 @@ if p_value < 0.05:
     print("\nDiferença estatisticamente significativa (5%).")
 else:
     print("\nDiferença NÃO estatisticamente significativa (5%).")
+
+
+# ============================================================
+# 4.3 CLASSIFICAÇÃO
+# Criação da variável alvo utilizRede
+# ============================================================
+
+from sklearn.model_selection import StratifiedKFold
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report, confusion_matrix
+
+print("=" * 60)
+print("4.3 CLASSIFICAÇÃO - CRIAÇÃO DO ALVO utilizRede")
+print("=" * 60)
+
+df_class = df_processed.copy()
+
+# Criar variável categórica com base em Util_Decimal
+# Baixo: até 39%
+# Médio: 40% a 79%
+# Alto: 80% ou superior
+
+df_class["utilizRede"] = pd.cut(
+    df_class["Util_Decimal"],
+    bins=[-np.inf, 0.39, 0.79, np.inf],
+    labels=["baixo", "médio", "alto"]
+)
+
+print("Distribuição da variável utilizRede:")
+print(df_class["utilizRede"].value_counts())
+print()
+
+plt.figure(figsize=(6,4))
+sns.countplot(
+    data=df_class,
+    x="utilizRede",
+    order=["baixo", "médio", "alto"]
+)
+plt.title("Distribuição da variável utilizRede")
+plt.xlabel("Nível de utilização da rede")
+plt.ylabel("Número de registos")
+plt.tight_layout()
+plt.show()
+
+# ============================================================
+# 4.3.1.a ÁRVORE DE DECISÃO - CLASSIFICAÇÃO
+# ============================================================
+
+print("=" * 60)
+print("4.3.1.a ÁRVORE DE DECISÃO")
+print("=" * 60)
+
+# ------------------------------------------------------------
+# Variáveis independentes e alvo
+# ------------------------------------------------------------
+
+X = df_class.drop(
+    columns=[
+        "utilizRede",
+        "Util_Decimal",
+        "PFolga_PTD"
+    ]
+)
+
+y = df_class["utilizRede"]
+
+# Converter variáveis booleanas para 0/1
+bool_cols = X.select_dtypes(include="bool").columns
+X[bool_cols] = X[bool_cols].astype(int)
+
+# ------------------------------------------------------------
+# Stratified K-Fold
+# ------------------------------------------------------------
+
+skf = StratifiedKFold(
+    n_splits=5,
+    shuffle=True,
+    random_state=42
+)
+
+accuracy_scores = []
+precision_scores = []
+recall_scores = []
+f1_scores = []
+
+# guardar previsões finais para relatório
+y_true_all = []
+y_pred_all = []
+
+for fold, (train_idx, test_idx) in enumerate(skf.split(X, y), start=1):
+
+    X_train = X.iloc[train_idx]
+    X_test = X.iloc[test_idx]
+
+    y_train = y.iloc[train_idx]
+    y_test = y.iloc[test_idx]
+
+    tree_clf = DecisionTreeClassifier(
+        max_depth=6,
+        min_samples_split=50,
+        min_samples_leaf=25,
+        class_weight="balanced",
+        random_state=42
+    )
+
+    tree_clf.fit(X_train, y_train)
+
+    y_pred = tree_clf.predict(X_test)
+
+    acc = accuracy_score(y_test, y_pred)
+
+    precision = precision_score(
+        y_test,
+        y_pred,
+        average="weighted",
+        zero_division=0
+    )
+
+    recall = recall_score(
+        y_test,
+        y_pred,
+        average="weighted",
+        zero_division=0
+    )
+
+    f1 = f1_score(
+        y_test,
+        y_pred,
+        average="weighted",
+        zero_division=0
+    )
+
+    accuracy_scores.append(acc)
+    precision_scores.append(precision)
+    recall_scores.append(recall)
+    f1_scores.append(f1)
+
+    y_true_all.extend(y_test)
+    y_pred_all.extend(y_pred)
+
+    print(
+        f"Fold {fold} -> "
+        f"Accuracy = {acc:.4f} | "
+        f"Precision = {precision:.4f} | "
+        f"Recall = {recall:.4f} | "
+        f"F1-score = {f1:.4f}"
+    )
+
+print("-" * 60)
+print(f"Accuracy Média : {np.mean(accuracy_scores):.4f}")
+print(f"Precision Média: {np.mean(precision_scores):.4f}")
+print(f"Recall Médio   : {np.mean(recall_scores):.4f}")
+print(f"F1-score Médio : {np.mean(f1_scores):.4f}")
+print("-" * 60)
+
+# ============================================================
+# RELATÓRIO DE CLASSIFICAÇÃO
+# ============================================================
+
+print("\nRelatório de Classificação:")
+print(
+    classification_report(
+        y_true_all,
+        y_pred_all,
+        zero_division=0
+    )
+)
+
+cm = confusion_matrix(
+    y_true_all,
+    y_pred_all,
+    labels=["baixo", "médio", "alto"]
+)
+
+plt.figure(figsize=(6,5))
+
+sns.heatmap(
+    cm,
+    annot=True,
+    fmt="d",
+    cmap="Blues",
+    xticklabels=["baixo", "médio", "alto"],
+    yticklabels=["baixo", "médio", "alto"]
+)
+
+plt.title("Matriz de Confusão - Árvore de Decisão")
+plt.xlabel("Classe prevista")
+plt.ylabel("Classe real")
+plt.tight_layout()
+plt.show()
+
+# ============================================================
+# ÁRVORE FINAL E IMPORTÂNCIA DAS FEATURES
+# ============================================================
+
+tree_final = DecisionTreeClassifier(
+    max_depth=4,
+    min_samples_split=50,
+    min_samples_leaf=25,
+    class_weight="balanced",
+    random_state=42
+)
+
+tree_final.fit(X, y)
+
+plt.figure(figsize=(26, 12))
+
+plot_tree(
+    tree_final,
+    feature_names=X.columns,
+    class_names=["alto", "baixo", "médio"],
+    filled=True,
+    rounded=True,
+    fontsize=8
+)
+
+plt.title("Árvore de Decisão para Classificação de utilizRede")
+plt.show()
+
+importance = pd.DataFrame({
+    "Variavel": X.columns,
+    "Importancia": tree_final.feature_importances_
+})
+
+importance = importance.sort_values(
+    by="Importancia",
+    ascending=False
+)
+
+print("\nTOP 10 FEATURES MAIS IMPORTANTES")
+print(importance.head(10))
+
+plt.figure(figsize=(10,6))
+
+sns.barplot(
+    data=importance.head(10),
+    x="Importancia",
+    y="Variavel"
+)
+
+plt.title("Top 10 Features Mais Importantes - Árvore de Decisão")
+plt.xlabel("Importância")
+plt.ylabel("Variável")
+plt.tight_layout()
+plt.show()
+
+# ============================================================
+# 4.3.1.b REDE NEURONAL - CLASSIFICAÇÃO
+# ============================================================
+
+from sklearn.model_selection import StratifiedKFold
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import classification_report, confusion_matrix
+
+print("=" * 60)
+print("4.3.1.b REDE NEURONAL - CLASSIFICAÇÃO")
+print("=" * 60)
+
+# ------------------------------------------------------------
+# Variáveis independentes e alvo
+# ------------------------------------------------------------
+
+X = df_class.drop(
+    columns=[
+        "utilizRede",
+        "Util_Decimal",
+        "PFolga_PTD"
+    ]
+)
+
+y = df_class["utilizRede"]
+
+# Converter booleanos para 0/1
+bool_cols = X.select_dtypes(include="bool").columns
+X[bool_cols] = X[bool_cols].astype(int)
+
+# Codificar classes: baixo, médio, alto -> números
+label_encoder = LabelEncoder()
+y_encoded = label_encoder.fit_transform(y)
+
+print("Classes codificadas:")
+for classe, codigo in zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_)):
+    print(f"{classe} -> {codigo}")
+
+# ------------------------------------------------------------
+# Configurações da rede
+# ------------------------------------------------------------
+
+configs_nn_class = [
+    {
+        "nome": "Config 1 - Rede simples",
+        "hidden_layer_sizes": (32,),
+        "alpha": 0.0001,
+        "learning_rate_init": 0.001
+    },
+    {
+        "nome": "Config 2 - Rede intermédia",
+        "hidden_layer_sizes": (64, 32),
+        "alpha": 0.001,
+        "learning_rate_init": 0.001
+    },
+    {
+        "nome": "Config 3 - Rede profunda",
+        "hidden_layer_sizes": (128, 64, 32),
+        "alpha": 0.01,
+        "learning_rate_init": 0.0005
+    }
+]
+
+skf = StratifiedKFold(
+    n_splits=5,
+    shuffle=True,
+    random_state=42
+)
+
+resultados_nn_class = []
+historicos_loss_class = {}
+
+melhor_f1 = -1
+melhor_config_nome = None
+melhor_y_true = None
+melhor_y_pred = None
+
+# ------------------------------------------------------------
+# Treino e validação cruzada
+# ------------------------------------------------------------
+
+for config in configs_nn_class:
+
+    print("\n" + "=" * 60)
+    print(config["nome"])
+    print("=" * 60)
+
+    accuracy_scores = []
+    precision_scores = []
+    recall_scores = []
+    f1_scores = []
+
+    y_true_all = []
+    y_pred_all = []
+
+    for fold, (train_idx, test_idx) in enumerate(skf.split(X, y_encoded), start=1):
+
+        X_train = X.iloc[train_idx]
+        X_test = X.iloc[test_idx]
+
+        y_train = y_encoded[train_idx]
+        y_test = y_encoded[test_idx]
+
+        # Standardização dentro do fold
+        scaler = StandardScaler()
+
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+
+        model = MLPClassifier(
+            hidden_layer_sizes=config["hidden_layer_sizes"],
+            activation="relu",
+            solver="adam",
+            alpha=config["alpha"],  # regularização L2
+            learning_rate_init=config["learning_rate_init"],
+            max_iter=300,
+            early_stopping=True,
+            validation_fraction=0.2,
+            n_iter_no_change=15,
+            random_state=42
+        )
+
+        model.fit(X_train_scaled, y_train)
+
+        y_pred = model.predict(X_test_scaled)
+
+        acc = accuracy_score(y_test, y_pred)
+
+        precision = precision_score(
+            y_test,
+            y_pred,
+            average="weighted",
+            zero_division=0
+        )
+
+        recall = recall_score(
+            y_test,
+            y_pred,
+            average="weighted",
+            zero_division=0
+        )
+
+        f1 = f1_score(
+            y_test,
+            y_pred,
+            average="weighted",
+            zero_division=0
+        )
+
+        accuracy_scores.append(acc)
+        precision_scores.append(precision)
+        recall_scores.append(recall)
+        f1_scores.append(f1)
+
+        y_true_all.extend(y_test)
+        y_pred_all.extend(y_pred)
+
+        print(
+            f"Fold {fold} -> "
+            f"Accuracy = {acc:.4f} | "
+            f"Precision = {precision:.4f} | "
+            f"Recall = {recall:.4f} | "
+            f"F1-score = {f1:.4f}"
+        )
+
+        # Guardar curva de loss do primeiro fold de cada configuração
+        if fold == 1:
+            historicos_loss_class[config["nome"]] = model.loss_curve_
+
+    acc_medio = np.mean(accuracy_scores)
+    precision_media = np.mean(precision_scores)
+    recall_medio = np.mean(recall_scores)
+    f1_medio = np.mean(f1_scores)
+
+    resultados_nn_class.append([
+        config["nome"],
+        config["hidden_layer_sizes"],
+        config["alpha"],
+        config["learning_rate_init"],
+        acc_medio,
+        precision_media,
+        recall_medio,
+        f1_medio
+    ])
+
+    print("-" * 60)
+    print(f"Accuracy Média : {acc_medio:.4f}")
+    print(f"Precision Média: {precision_media:.4f}")
+    print(f"Recall Médio   : {recall_medio:.4f}")
+    print(f"F1-score Médio : {f1_medio:.4f}")
+
+    if f1_medio > melhor_f1:
+        melhor_f1 = f1_medio
+        melhor_config_nome = config["nome"]
+        melhor_y_true = y_true_all.copy()
+        melhor_y_pred = y_pred_all.copy()
+
+# ------------------------------------------------------------
+# Resumo das configurações
+# ------------------------------------------------------------
+
+resultados_nn_class = pd.DataFrame(
+    resultados_nn_class,
+    columns=[
+        "Configuração",
+        "Camadas",
+        "Alpha L2",
+        "Learning Rate",
+        "Accuracy",
+        "Precision",
+        "Recall",
+        "F1-score"
+    ]
+)
+
+print("\nResumo das Redes Neuronais - Classificação:")
+print(resultados_nn_class)
+
+print("\nMelhor configuração:")
+print(f"{melhor_config_nome} | F1-score = {melhor_f1:.4f}")
+
+# ============================================================
+# CURVAS DE LOSS - REDE NEURONAL CLASSIFICAÇÃO
+# ============================================================
+
+for nome_config, loss_curve in historicos_loss_class.items():
+
+    plt.figure(figsize=(8, 5))
+
+    plt.plot(
+        loss_curve,
+        label="Loss Treino"
+    )
+
+    plt.title(f"Curva de Loss - {nome_config}")
+    plt.xlabel("Épocas")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+# ============================================================
+# RELATÓRIO DA MELHOR REDE NEURONAL
+# ============================================================
+
+print("\nRelatório de Classificação - Melhor Rede Neuronal:")
+
+print(
+    classification_report(
+        melhor_y_true,
+        melhor_y_pred,
+        target_names=label_encoder.classes_,
+        zero_division=0
+    )
+)
+
+cm = confusion_matrix(
+    melhor_y_true,
+    melhor_y_pred
+)
+
+plt.figure(figsize=(6,5))
+
+sns.heatmap(
+    cm,
+    annot=True,
+    fmt="d",
+    cmap="Blues",
+    xticklabels=label_encoder.classes_,
+    yticklabels=label_encoder.classes_
+)
+
+plt.title(f"Matriz de Confusão - {melhor_config_nome}")
+plt.xlabel("Classe prevista")
+plt.ylabel("Classe real")
+plt.tight_layout()
+plt.show()
